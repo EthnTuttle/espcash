@@ -31,9 +31,10 @@ embassy = [
 log = { version = "0.4", default-features = false }
 esp-idf-svc = "=0.48.1"
 embedded-svc = "=0.27.1"
-anyhow = "=1.0.75"
+anyhow = "=1.0.79"
 heapless = "0.8.0"
 rgb = "0.8.29"
+moksha-core = { version = "0.2.1", path = "../moksha/moksha-core" }
 
 [build-dependencies]
 embuild = "0.31.3"

@@ -42,7 +42,7 @@ fn main() -> Result<()> {
         sysloop,
     )?;
 
-    get("http://neverssl.com/")?;
+    get("http://192.168.1.237:3338/v1/info")?;
 
     Ok(())
 }
