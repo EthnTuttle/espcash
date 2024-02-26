@@ -35,6 +35,33 @@ anyhow = "=1.0.79"
 heapless = "0.8.0"
 rgb = "0.8.29"
 moksha-core = { version = "0.2.1", path = "../moksha/moksha-core" }
+# moksha-wallet = { version = "0.2.1", path = "../moksha/moksha-wallet" }
+
+# # Wallet deps
+secp256k1 = { version = "0.28.2", default-features = false, features = ["serde"] }
+serde_json = "1.0.113"
+serde = "1.0.196"
+thiserror = "1.0.56"
+async-trait = "0.1.77"
+lightning-invoice = "0.29.0"
+url = "2.5.0"
+# esp doesn't have dirs
+# dirs = "5.0.1"
+
+# [target.'cfg(target_family = "wasm")'.dependencies]
+gloo-net = { version = "0.5.0" }
+serde-wasm-bindgen = "0.6.3"
+wasm-bindgen = "0.2.90"
+rexie = "0.5.0"
+tokio = { version = "1.35.1", features = ["rt", "sync"] }
+
+# [target.'cfg(not(target_family="wasm"))'.dependencies]
+# doesn't like the tls stuff here
+# reqwest = { version = "0.11.23", features = ["serde_json", "json", "rustls-tls"], default-features = false }
+# we don't want multi-thread 
+# tokio = { version = "1.35.1", features = ["rt", "rt-multi-thread", "macros"] }
+# esp doesn't like
+# sqlx = { version = "0.7.3", default-features = false, features = ["sqlite", "runtime-tokio", "tls-native-tls", "migrate", "macros"] }
 
 [build-dependencies]
 embuild = "0.31.3"
