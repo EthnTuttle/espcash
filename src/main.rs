@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
-use core::time::Duration;
 use core::str;
+use core::time::Duration;
 use embedded_svc::{
     http::{client::Client, Method},
     io::Read,
@@ -9,10 +9,30 @@ use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::peripheral,
     hal::prelude::Peripherals,
-    wifi::{AuthMethod, BlockingWifi, ClientConfiguration, EspWifi},
     http::client::{Configuration, EspHttpConnection},
+    wifi::{AuthMethod, BlockingWifi, ClientConfiguration, EspWifi},
+};
+use futures::Future;
+use moksha_core::{
+    blind::BlindedMessage,
+    keyset::V1Keysets,
+    primitives::{
+        CurrencyUnit, GetMeltOnchainResponse, KeysResponse, MintInfoResponse,
+        PostMeltBolt11Response, PostMeltOnchainResponse, PostMeltQuoteBolt11Response,
+        PostMeltQuoteOnchainResponse, PostMintBolt11Response, PostMintOnchainResponse,
+        PostMintQuoteBolt11Response, PostMintQuoteOnchainResponse, PostSwapResponse,
+    },
+    proof::Proofs,
+};
+use moksha_wallet::{
+    client::CashuClient,
+    error::MokshaWalletError,
+    localstore::{RexieTransaction, WalletKeyset},
 };
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
+use tokio::runtime::Runtime;
+use url::Url;
 
 use log::info;
 
@@ -21,7 +41,8 @@ pub struct Config {
     wifi_psk: &'static str,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
 
@@ -42,12 +63,30 @@ fn main() -> Result<()> {
         sysloop,
     )?;
 
-    get("http://192.168.1.237:3338/v1/info")?;
+    let localstore = EspFlashLocalStore::new();
+    let client = EspHttpCashuClient::new();
+    let wallet: moksha_wallet::wallet::Wallet<EspFlashLocalStore, EspHttpCashuClient> =
+        moksha_wallet::wallet::WalletBuilder::default()
+            .with_client(client)
+            .with_localstore(localstore)
+            .with_mint_url(Url::parse("http://192.168.1.237:3338").unwrap())
+            .build()
+            .await
+            .map_err(|e| {
+                if matches!(
+                    e,
+                    moksha_wallet::error::MokshaWalletError::UnsupportedApiVersion
+                ) {
+                    println!("Error: Mint does not support /v1 api");
+                    std::process::exit(1);
+                }
+                e
+            })?;
 
     Ok(())
 }
 
-fn get(url: impl AsRef<str>) -> Result<()> {
+fn get(url: impl AsRef<str>, method: Method) -> Result<()> {
     // 1. Create a new EspHttpConnection with default Configuration. (Check documentation)
     let connection = EspHttpConnection::new(&Configuration::default())?;
     // 2. Get a client using the embedded_svc Client::wrap method. (Check documentation)
@@ -56,7 +95,7 @@ fn get(url: impl AsRef<str>) -> Result<()> {
     // 3. Open a GET request to `url`
     let headers = [("accept", "text/plain")];
     // ANCHOR: request
-    let request = client.request(Method::Get, url.as_ref(), &headers)?;
+    let request = client.request(method, url.as_ref(), &headers)?;
     // ANCHOR_END: request
 
     // 4. Submit the request and check the status code of the response.
@@ -156,7 +195,9 @@ pub fn wifi(
 
     let mut wifi = BlockingWifi::wrap(&mut esp_wifi, sysloop)?;
 
-    wifi.set_configuration(&esp_idf_svc::wifi::Configuration::Client(ClientConfiguration::default()))?;
+    wifi.set_configuration(&esp_idf_svc::wifi::Configuration::Client(
+        ClientConfiguration::default(),
+    ))?;
 
     info!("Starting wifi...");
 
@@ -183,13 +224,15 @@ pub fn wifi(
     };
     let ssid = heapless::String::<32>::from_str(ssid).expect("bad type casting of ssid");
     let password = heapless::String::<64>::from_str(pass).expect("bad type casting of password.");
-    wifi.set_configuration(&esp_idf_svc::wifi::Configuration::Client(ClientConfiguration {
-        ssid,
-        password,
-        channel,
-        auth_method,
-        ..Default::default()
-    }))?;
+    wifi.set_configuration(&esp_idf_svc::wifi::Configuration::Client(
+        ClientConfiguration {
+            ssid,
+            password,
+            channel,
+            auth_method,
+            ..Default::default()
+        },
+    ))?;
 
     info!("Connecting wifi...");
 
@@ -204,4 +247,201 @@ pub fn wifi(
     info!("Wifi DHCP info: {:?}", ip_info);
 
     Ok(Box::new(esp_wifi))
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct EspHttpCashuClient;
+
+impl EspHttpCashuClient {
+    pub fn new() -> Self {
+        todo!()
+    }
+}
+
+impl CashuClient for EspHttpCashuClient {
+    fn get_keys(&self, mint_url: &Url) -> std::prelude::v1::Result<KeysResponse, MokshaWalletError> {
+        todo!()
+    }
+
+    fn get_keys_by_id(
+        &self,
+        mint_url: &Url,
+        keyset_id: String,
+    ) -> std::prelude::v1::Result<KeysResponse, MokshaWalletError> {
+        todo!()
+    }
+
+    fn get_keysets(&self, mint_url: &Url) -> std::prelude::v1::Result<V1Keysets, MokshaWalletError> {
+        todo!()
+    }
+
+    fn post_swap(
+        &self,
+        mint_url: &Url,
+        proofs: Proofs,
+        output: Vec<BlindedMessage>,
+    ) -> std::prelude::v1::Result<PostSwapResponse, MokshaWalletError> {
+        todo!()
+    }
+
+    fn post_melt_bolt11(
+        &self,
+        mint_url: &Url,
+        proofs: Proofs,
+        quote: String,
+        outputs: Vec<BlindedMessage>,
+    ) -> std::prelude::v1::Result<PostMeltBolt11Response, MokshaWalletError> {
+        todo!()
+    }
+
+    fn post_melt_quote_bolt11(
+        &self,
+        mint_url: &Url,
+        payment_request: String,
+        unit: CurrencyUnit,
+    ) -> std::prelude::v1::Result<PostMeltQuoteBolt11Response, MokshaWalletError> {
+        todo!()
+    }
+
+    fn get_melt_quote_bolt11(
+        &self,
+        mint_url: &Url,
+        quote: String,
+    ) -> std::prelude::v1::Result<PostMeltQuoteBolt11Response, MokshaWalletError> {
+        todo!()
+    }
+
+    fn post_mint_bolt11(
+        &self,
+        mint_url: &Url,
+        quote: String,
+        blinded_messages: Vec<BlindedMessage>,
+    ) -> std::prelude::v1::Result<PostMintBolt11Response, MokshaWalletError> {
+        todo!()
+    }
+
+    fn post_mint_quote_bolt11(
+        &self,
+        mint_url: &Url,
+        amount: u64,
+        unit: CurrencyUnit,
+    ) -> std::prelude::v1::Result<PostMintQuoteBolt11Response, MokshaWalletError> {
+        todo!()
+    }
+
+    fn get_mint_quote_bolt11(
+        &self,
+        mint_url: &Url,
+        quote: String,
+    ) -> std::prelude::v1::Result<PostMintQuoteBolt11Response, MokshaWalletError> {
+        todo!()
+    }
+
+    fn get_info(&self, mint_url: &Url) -> std::prelude::v1::Result<MintInfoResponse, MokshaWalletError> {
+        todo!()
+    }
+
+    fn is_v1_supported(&self, mint_url: &Url) -> std::prelude::v1::Result<bool, MokshaWalletError> {
+        todo!()
+    }
+
+    fn post_mint_onchain(
+        &self,
+        mint_url: &Url,
+        quote: String,
+        blinded_messages: Vec<BlindedMessage>,
+    ) -> std::prelude::v1::Result<PostMintOnchainResponse, MokshaWalletError> {
+        todo!()
+    }
+
+    fn post_mint_quote_onchain(
+        &self,
+        mint_url: &Url,
+        amount: u64,
+        unit: CurrencyUnit,
+    ) -> std::prelude::v1::Result<PostMintQuoteOnchainResponse, MokshaWalletError> {
+        todo!()
+    }
+
+    fn get_mint_quote_onchain(
+        &self,
+        mint_url: &Url,
+        quote: String,
+    ) -> std::prelude::v1::Result<PostMintQuoteOnchainResponse, MokshaWalletError> {
+        todo!()
+    }
+
+    fn post_melt_onchain(
+        &self,
+        mint_url: &Url,
+        proofs: Proofs,
+        quote: String,
+    ) -> std::prelude::v1::Result<PostMeltOnchainResponse, MokshaWalletError> {
+        todo!()
+    }
+
+    fn post_melt_quote_onchain(
+        &self,
+        mint_url: &Url,
+        address: String,
+        amount: u64,
+        unit: CurrencyUnit,
+    ) -> std::prelude::v1::Result<Vec<PostMeltQuoteOnchainResponse>, MokshaWalletError> {
+        todo!()
+    }
+
+    fn get_melt_quote_onchain(
+        &self,
+        mint_url: &Url,
+        quote: String,
+    ) -> std::prelude::v1::Result<PostMeltQuoteOnchainResponse, MokshaWalletError> {
+        todo!()
+    }
+
+    fn get_melt_onchain(
+        &self,
+        mint_url: &Url,
+        txid: String,
+    ) -> std::prelude::v1::Result<GetMeltOnchainResponse, MokshaWalletError> {
+        todo!()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct EspFlashLocalStore;
+
+impl EspFlashLocalStore {
+    pub fn new() -> Self {
+        todo!()
+    }
+}
+
+impl moksha_wallet::localstore::LocalStore for EspFlashLocalStore {
+    fn delete_proofs(
+        &self,
+        tx: &mut RexieTransaction,
+        proofs: &Proofs,
+    ) -> std::prelude::v1::Result<(), MokshaWalletError> {
+        todo!()
+    }
+
+    fn add_proofs(
+        &self,
+        tx: &mut RexieTransaction,
+        proofs: &Proofs,
+    ) -> std::prelude::v1::Result<(), MokshaWalletError> {
+        todo!()
+    }
+
+    fn get_proofs(&self, tx: &mut RexieTransaction) -> std::prelude::v1::Result<Proofs, MokshaWalletError> {
+        todo!()
+    }
+
+    fn get_keysets(&self) -> std::prelude::v1::Result<Vec<WalletKeyset>, MokshaWalletError> {
+        todo!()
+    }
+
+    fn add_keyset(&self, keyset: &WalletKeyset) -> std::prelude::v1::Result<(), MokshaWalletError> {
+        todo!()
+    }
 }

@@ -34,6 +34,7 @@ embedded-svc = "=0.27.1"
 anyhow = "=1.0.79"
 heapless = "0.8.0"
 rgb = "0.8.29"
+url = "2.5.0"
 moksha-core = { version = "0.2.1", path = "../moksha/moksha-core" }
 moksha-wallet = { path = "../moksha/moksha-wallet" }
 # moksha-wallet = { git = "https://github.com/EthnTuttle/moksha", rev = "0ccb60f" }
